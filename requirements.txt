@@ -1,0 +1,19 @@
+# --- Tầng API & Cấu hình ---
+fastapi
+uvicorn[standard]
+gunicorn
+pydantic-settings
+vietnam-number
+
+# --- Tầng Worker & Queue (MỚI) ---
+celery
+redis
+
+# --- Tầng AI & Xử lý Âm thanh ---
+torch
+omnivoice
+soundfile
+huggingface-hub
+accelerate
+transformers
+psutil
