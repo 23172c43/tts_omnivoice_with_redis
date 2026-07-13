@@ -4,7 +4,7 @@ Mo gia tri co the thay doi theo moi truong (dev/staging/prod).
 """
 
 from pathlib import Path
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Duong dan goc project, tu dong phat hien cho moi may
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     Cau hinh chinh cua ung dung.
     Doc gia tri tu file .env, neu khong co thi dung default.
     """
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+    )
 
     # --- App ---
     PROJECT_NAME: str = "OmniVoice API"
@@ -32,15 +37,11 @@ class Settings(BaseSettings):
     MODEL_DIR: str = "local_models/k2-fsa/OmniVoice"
 
     # --- Audio ---
-    SAMPLE_RATE: int = 24000  # Tan so mau mac dinh
-    MAX_CHARS: int = 400      # So ky tu toi da moi chunk khi streaming
+    SAMPLE_RATE: int = 24000
+    MAX_CHARS: int = 400
 
     # --- Voice ---
     DEFAULT_VOICE_ID: str = "001"
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
 
 settings = Settings()
