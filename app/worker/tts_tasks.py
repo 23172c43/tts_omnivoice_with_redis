@@ -31,7 +31,7 @@ LIPSYNC_URL = "http://localhost:8010"
 LIPSYNC_ENDPOINT = "/api/v1/lipsync/generate"
 
 
-@celery_app.task(name="process_tts_task", bind=True, max_retries=2)
+@celery_app.task(name="process_tts_task", bind=True, max_retries=2, queue="tts_queue")
 def process_tts_task(self, text: str, voice_id: str = None, speed: float = None, stream: bool = False):
     """
     Celery task de xu ly yeu cau TTS.
