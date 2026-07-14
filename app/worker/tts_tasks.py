@@ -4,19 +4,31 @@ Celery Task cho TTS - Xu ly generate audio bat dong bo.
 Chuc nang:
 - Non-streaming: Generate full audio, gui 1 lan cho LipSync
 - Streaming: Generate tung chunk, gui tung chunk cho LipSync
+
+Luong xu ly:
+1. Generate audio tu text
+2. Luu file WAV vao /dev/shm (RAM disk, chia se giua cac container)
+3. Gui JSON path den LipSync service
 """
 
+import io
 import logging
 
 import httpx
+import soundfile as sf
+import numpy as np
 
 from app.worker.celery_app import celery_app
 from app.services.omnivoice_service import generate_speech, generate_streaming
 
 logger = logging.getLogger(__name__)
 
-# URL cua LipSync service (trong Docker)
-LIPSYNC_URL = "http://lipsync:8003"
+# Thu muc chia se RAM disk giua cac container
+SHM_DIR = "/dev/shm"
+
+# LipSync service (container khac)
+LIPSYNC_URL = "http://lipsync:8010"
+LIPSYNC_ENDPOINT = "/api/v1/generate"
 
 
 @celery_app.task(name="process_tts_task", bind=True, max_retries=2)
@@ -25,10 +37,9 @@ def process_tts_task(self, text: str, voice_id: str = None, speed: float = None,
     Celery task de xu ly yeu cau TTS.
 
     Quy trinh:
-    1. Load model vao GPU (neu chua co)
-    2. Neu stream=True: generate tung chunk, gui tung chunk
-    3. Neu stream=False: generate full, gui 1 lan
-    4. Tra ve ket qua hoac loi
+    1. Generate audio tu text
+    2. Luu file WAV vao /dev/shm
+    3. Gui audio_path + voice_id cho LipSync
 
     Args:
         text: Van ban can chuyen thanh giong noi
@@ -39,105 +50,172 @@ def process_tts_task(self, text: str, voice_id: str = None, speed: float = None,
     Returns:
         dict voi:
             - status: "success" hoac "error"
-            - lipsync_response: Phan hoi tu LipSync (neu thanh cong)
+            - lipsync_response: Phan hoi tu LipSync
             - message: Thong bao loi (neu that bai)
 
     Note:
         - Neu loi CUDA -> retry sau 60s
         - Chi retry loi CUDA/memory, loi khac tra ve error ngay
     """
+    task_id = str(self.request.id)  # ID cua Celery task, dung lam filename
+
     try:
-        logger.info("Bat dau task TTS: text=%s, voice_id=%s, stream=%s",
-                     text[:50], voice_id, stream)
+        logger.info("Bat dau task TTS: task_id=%s, text=%s, voice_id=%s, stream=%s",
+                     task_id, text[:50], voice_id, stream)
 
         if stream:
-            # Streaming - generate tung chunk, gui ngay
-            return _handle_streaming(text, voice_id)
+            return _handle_streaming(text, voice_id, task_id)
         else:
-            # Non-streaming - generate full, gui 1 lan
-            return _handle_non_streaming(text, voice_id, speed)
+            return _handle_non_streaming(text, voice_id, speed, task_id)
 
     except Exception as exc:
         logger.error("Task TTS that bai: %s", exc, exc_info=True)
 
-        # Chi retry loi CUDA/memory (do GPU het bo nho)
         if "CUDA" in str(exc) or "memory" in str(exc).lower():
             raise self.retry(exc=exc, countdown=60)
 
         return {"status": "error", "message": str(exc)}
 
 
-def _handle_streaming(text: str, voice_id: str) -> dict:
+# ============================================================
+# LIPSYNC CLIENT
+# ============================================================
+
+def _send_to_lipsync(voice_id: str, audio_path: str) -> dict:
     """
-    Xu ly streaming: generate tung chunk, gui tung chunk cho LipSync.
+    Gui yeu cau xu ly LipSync.
+
+    Args:
+        voice_id: ID cua voice (LipSync dung lam image_id)
+        audio_path: Duong dan file audio trong /dev/shm
+
+    Returns:
+        dict voi status va response tu LipSync.
+        Neu thanh cong, lipsync_response chua:
+            - job_id: ID job LipSync
+            - task_id: ID task LipSync
+            - status: "queued"
+            - video_url: URL de lay video sau khi xu ly
+
+    """
+    payload = {
+        "image_id": voice_id,     # voice_id map sang image_id ben LipSync
+        "audio_path": audio_path, # duong dan file trong /dev/shm
+    }
+
+    try:
+        response = httpx.post(
+            f"{LIPSYNC_URL}{LIPSYNC_ENDPOINT}",
+            json=payload,
+            timeout=60,
+        )
+        response.raise_for_status()
+        return {"status": "success", "lipsync_response": response.json()}
+
+    except httpx.HTTPError as exc:
+        logger.error("Loi gui LipSync: %s", exc)
+        return {"status": "error", "message": f"Loi gui LipSync: {exc}"}
+
+
+# ============================================================
+# STREAMING
+# ============================================================
+
+def _handle_streaming(text: str, voice_id: str, task_id: str) -> dict:
+    """
+    Xu ly streaming: generate tung chunk, merge, gui path cho LipSync.
+
+    Quy trinh:
+    1. Collect tat ca chunks tu generate_streaming()
+    2. Merge cac chunk thanh 1 WAV file
+    3. Luu file vao /dev/shm/{task_id}.wav
+    4. Gui path cho LipSync
 
     Args:
         text: Van ban can generate
         voice_id: ID cua voice
+        task_id: ID cua task (dung lam ten file)
 
     Returns:
-        dict voi status va so chunk da gui
+        dict voi status va phan hoi tu LipSync
     """
-    chunks_sent = 0
+    logger.info("Streaming: collecting chunks...")
 
-    for chunk in generate_streaming(text, voice_id):
-        try:
-            # Gui chunk den LipSync
-            files = {"audio": ("chunk.wav", chunk, "audio/wav")}
-            response = httpx.post(
-                f"{LIPSYNC_URL}/api/lipsync/chunk",
-                files=files,
-                timeout=30,
-            )
-            response.raise_for_status()  # Neu 4xx/5xx -> exception
-            chunks_sent += 1
-            logger.info("Sent chunk %d thanh cong", chunks_sent)
+    # Buoc 1: Collect tat ca chunks
+    chunks = list(generate_streaming(text, voice_id))
 
-        except httpx.HTTPError as exc:
-            logger.error("Loi gui chunk %d: %s", chunks_sent + 1, exc)
-            # Khong tra ve error ngay, van gui chunk khac
+    if not chunks:
+        return {"status": "error", "message": "Khong generate duoc chunk nao"}
+
+    logger.info("Da collect %d chunks", len(chunks))
+
+    # Buoc 2: Merge cac chunk thanh 1 audio
+    all_audio = []
+    sample_rate = 24000
+    for chunk in chunks:
+        data, sr = sf.read(io.BytesIO(chunk))
+        all_audio.append(data)
+        sample_rate = sr  # Lay sample rate tu chunk cuoi
+
+    merged = np.concatenate(all_audio)
+
+    # Buoc 3: Luu file vao /dev/shm
+    audio_path = f"{SHM_DIR}/{task_id}.wav"
+    sf.write(audio_path, merged, sample_rate)
+
+    logger.info("Da luu file: %s (%.1fs)", audio_path, len(merged) / sample_rate)
+
+    # Buoc 4: Gui path cho LipSync
+    result = _send_to_lipsync(voice_id, audio_path)
 
     return {
-        "status": "success",
+        **result,
         "mode": "streaming",
-        "chunks_sent": chunks_sent,
-        "message": f"Da gui {chunks_sent} chunks den LipSync",
+        "chunks": len(chunks),
+        "audio_path": audio_path,
     }
 
 
-def _handle_non_streaming(text: str, voice_id: str, speed: float) -> dict:
+# ============================================================
+# NON-STREAMING
+# ============================================================
+
+def _handle_non_streaming(text: str, voice_id: str, speed: float, task_id: str) -> dict:
     """
-    Xu ly non-streaming: generate full audio, gui 1 lan.
+    Xu ly non-streaming: generate full audio, gui path cho LipSync.
+
+    Quy trinh:
+    1. Generate full audio
+    2. Luu file vao /dev/shm/{task_id}.wav
+    3. Gui path cho LipSync
 
     Args:
         text: Van ban can generate
         voice_id: ID cua voice
         speed: Toc do doc
+        task_id: ID cua task (dung lam ten file)
 
     Returns:
         dict voi status va phan hoi tu LipSync
     """
-    # Generate full audio
+    # Buoc 1: Generate full audio
     result = generate_speech(text, voice_id, speed)
 
     if result["status"] != "success" or not result.get("audio_buffer"):
         return result
 
-    # Gui den LipSync
-    try:
-        files = {"audio": ("output.wav", result["audio_buffer"], "audio/wav")}
-        response = httpx.post(
-            f"{LIPSYNC_URL}/api/lipsync",
-            files=files,
-            timeout=30,
-        )
-        response.raise_for_status()
+    # Buoc 2: Luu file vao /dev/shm
+    audio_path = f"{SHM_DIR}/{task_id}.wav"
+    with open(audio_path, "wb") as f:
+        f.write(result["audio_buffer"])
 
-        return {
-            "status": "success",
-            "lipsync_response": response.json(),
-            "message": "Gui LipSync thanh cong",
-        }
-    except httpx.HTTPError as exc:
-        logger.error("Loi gui LipSync: %s", exc)
-        return {"status": "error", "message": f"Loi gui LipSync: {exc}"}
+    logger.info("Da luu file: %s (%d bytes)", audio_path, len(result["audio_buffer"]))
+
+    # Buoc 3: Gui path cho LipSync
+    result = _send_to_lipsync(voice_id, audio_path)
+
+    return {
+        **result,
+        "mode": "non_streaming",
+        "audio_path": audio_path,
+    }
