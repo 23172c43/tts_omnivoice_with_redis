@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 SHM_DIR = "/dev/shm"
 
 # LipSync service (container khac)
-LIPSYNC_URL = "http://lipsync:8010"
-LIPSYNC_ENDPOINT = "/api/v1/generate"
+LIPSYNC_URL = "http://localhost:8010"
+LIPSYNC_ENDPOINT = "/api/v1/lipsync/generate"
 
 
 @celery_app.task(name="process_tts_task", bind=True, max_retries=2)
@@ -115,6 +115,8 @@ def _send_to_lipsync(voice_id: str, audio_path: str) -> dict:
     except httpx.HTTPError as exc:
         logger.error("Loi gui LipSync: %s", exc)
         return {"status": "error", "message": f"Loi gui LipSync: {exc}"}
+    finally:
+        print("co ve thanh cong gui yeu cau LipSync, response: ", response.text if 'response' in locals() else 'No response')
 
 
 # ============================================================
