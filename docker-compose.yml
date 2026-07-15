@@ -34,21 +34,15 @@ services:
     build: .
     image: omnivoice-tts:latest
     restart: unless-stopped
+    runtime: nvidia
     command: celery -A app.worker.celery_app worker --loglevel=info -c 1
     environment:
       - REDIS_URL=redis://redis:6379/0
       - MODEL_DIR=/app/local_models/k2-fsa/OmniVoice
-      - CUDA_VISIBLE_DEVICES=1
+      - NVIDIA_VISIBLE_DEVICES=1
     volumes:
       - ./local_models:/app/local_models
       - /dev/shm/audio:/dev/shm/audio
     shm_size: 256mb
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
     depends_on:
       - redis
