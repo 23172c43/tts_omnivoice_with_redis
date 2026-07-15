@@ -27,7 +27,8 @@ logger = logging.getLogger(__name__)
 SHM_DIR = "/dev/shm/audio"
 
 # Tao thu muc neu chua ton tai (tmpfs se empty sau moi lan reboot)
-os.makedirs(SHM_DIR, exist_ok=True)
+os.makedirs(SHM_DIR, exist_ok=True, mode=0o777)
+os.chmod(SHM_DIR, 0o777)
 
 # TODO: khi nao can gui sang LipSync, uncomment dong duoi va setup .env
 # from app.core.config import settings
