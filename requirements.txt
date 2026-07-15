@@ -3,8 +3,6 @@ uvicorn[standard]
 pydantic-settings
 celery
 redis
---extra-index-url https://download.pytorch.org/whl/cu118
-torch==2.1.0
 omnivoice
 soundfile
 httpx
