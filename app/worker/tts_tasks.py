@@ -15,7 +15,6 @@ import io
 import logging
 import os
 
-import httpx
 import soundfile as sf
 import numpy as np
 
@@ -24,8 +23,11 @@ from app.services.omnivoice_service import generate_speech, generate_streaming
 
 logger = logging.getLogger(__name__)
 
-# Thu muc chia se RAM disk giua cac container
+# Thu muc chia se RAM disk (tmpfs) de luu file audio
 SHM_DIR = "/dev/shm/audio"
+
+# Tao thu muc neu chua ton tai (tmpfs se empty sau moi lan reboot)
+os.makedirs(SHM_DIR, exist_ok=True)
 
 # TODO: khi nao can gui sang LipSync, uncomment dong duoi va setup .env
 # from app.core.config import settings
