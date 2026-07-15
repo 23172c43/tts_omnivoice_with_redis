@@ -120,11 +120,13 @@ async def get_task_status(task_id: str):
     }
 
     if result.status == "SUCCESS":
-        # Task thanh cong - lay ket qua tu Celery
+        # Task thanh cong - lay audio_path tu Ket qua Celery
         task_result = result.result or {}
         response_data["status"] = "success"
-        response_data["lipsync_response"] = task_result.get("lipsync_response")
+        response_data["audio_path"] = task_result.get("audio_path")
         response_data["message"] = task_result.get("message")
+        response_data["mode"] = task_result.get("mode")
+        response_data["duration"] = task_result.get("duration")
 
     elif result.status == "FAILURE":
         # Task that bai - lay thong tin loi

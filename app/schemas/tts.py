@@ -43,11 +43,19 @@ class TTSResponse(BaseModel):
         ...,
         description="Trang thai xu ly: 'processing', 'success', 'error'",
     )
-    lipsync_response: Optional[dict] = Field(
+    audio_path: Optional[str] = Field(
         None,
-        description="Phan hoi tu LipSync service (neu co)",
+        description="Duong dan file WAV trong /dev/shm (chi co khi status='success')",
     )
     message: Optional[str] = Field(
         None,
         description="Thong bao chi tiet hoac loi",
+    )
+    mode: Optional[str] = Field(
+        None,
+        description="'streaming' hoac 'non_streaming'",
+    )
+    duration: Optional[float] = Field(
+        None,
+        description="Thoi gian audio (giay)",
     )

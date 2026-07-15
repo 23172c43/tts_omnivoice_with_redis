@@ -53,7 +53,7 @@ async def poll_task(client, task_id: str) -> dict:
     Poll trang thai task cho den khi thanh cong/that bai/timeout.
 
     Returns:
-        dict voi status, message, lipsync_response, _poll_time
+        dict voi status, message, audio_path, _poll_time
     """
     t0 = time.perf_counter()
     while True:
@@ -128,7 +128,7 @@ async def single_run(client, sem: asyncio.Semaphore, i: int, stream: bool = Fals
             "status": result["status"],
             "total_time": total_time,
             "poll_time": result.get("_poll_time", 0),
-            "lipsync_response": result.get("lipsync_response"),
+            "audio_path": result.get("audio_path"),
             "message": result.get("message"),
             "text_len": len(text),
             **({} if ok else {"error": result.get("message", "unknown-error")}),
