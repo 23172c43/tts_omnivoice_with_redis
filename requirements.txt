@@ -1,19 +1,13 @@
-# --- Tầng API & Cấu hình ---
 fastapi
 uvicorn[standard]
-gunicorn
 pydantic-settings
-vietnam-number
-
-# --- Tầng Worker & Queue (MỚI) ---
 celery
 redis
-
-# --- Tầng AI & Xử lý Âm thanh ---
-torch
 omnivoice
 soundfile
+httpx
+numpy
 huggingface-hub
 accelerate
 transformers
-psutil
+vietnam-number

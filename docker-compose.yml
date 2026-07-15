@@ -1,0 +1,54 @@
+# ============================================================
+# OmniVoice TTS — Docker Compose
+# ============================================================
+# Services:
+#   redis       — Celery broker + backend
+#   tts_api     — FastAPI server (port 8100)
+#   tts_worker  — Celery worker (GPU 1, /dev/shm)
+# ============================================================
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: always
+    # Khong can expose port ra host, chi dung internal network
+    expose:
+      - 6379
+
+  tts_api:
+    build: .
+    image: omnivoice-tts:latest
+    restart: always
+    ports:
+      - "8100:8100"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - PORT=8100
+      - MODEL_DIR=/app/local_models/k2-fsa/OmniVoice
+    volumes:
+      - ./local_models:/app/local_models
+    depends_on:
+      - redis
+
+  tts_worker:
+    build: .
+    image: omnivoice-tts:latest
+    restart: unless-stopped
+    command: celery -A app.worker.celery_app worker --loglevel=info -c 1
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - MODEL_DIR=/app/local_models/k2-fsa/OmniVoice
+      - CUDA_VISIBLE_DEVICES=1
+    volumes:
+      - ./local_models:/app/local_models
+      - /dev/shm/audio:/dev/shm/audio
+    shm_size: 256mb
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    depends_on:
+      - redis

@@ -1,0 +1,14 @@
+__pycache__
+*.py[cod]
+*.egg-info
+.git
+.gitignore
+.env
+.env.example
+test_output
+local_models
+bench.py
+test_streaming.py
+make_tree.py
+*.log
+*.wav
