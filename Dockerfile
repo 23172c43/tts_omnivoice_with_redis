@@ -1,11 +1,11 @@
 # ============================================================
 # OmniVoice TTS — Docker Image
 # ============================================================
-# Base: PyTorch 2.4 + CUDA 12.1 + cuDNN 8
+# Base: PyTorch 2.4 + CUDA 12.1 + cuDNN 9
 # Chua ca FastAPI server va Celery worker (khac command)
 # ============================================================
 
-FROM pytorch/pytorch:2.4.0-cuda12.1-cudnn8-runtime
+FROM pytorch/pytorch:2.4.1-cuda12.1-cudnn9-runtime
 
 # === System deps ===
 RUN apt-get update && apt-get install -y --no-install-recommends \
