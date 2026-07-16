@@ -20,7 +20,7 @@ services:
     image: omnivoice-tts:latest
     restart: always
     ports:
-      - "80:8100"
+      - "8100:8100"
     environment:
       - REDIS_URL=redis://redis:6379/0
       - PORT=8100
