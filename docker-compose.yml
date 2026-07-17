@@ -31,6 +31,7 @@ services:
       - MODEL_DIR=/app/local_models/k2-fsa/OmniVoice
     volumes:
       - ./local_models:/app/local_models
+      - ./voice_data:/app/voice_data
     depends_on:
       redis:
         condition: service_healthy
@@ -53,6 +54,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=1
     volumes:
       - ./local_models:/app/local_models
+      - ./voice_data:/app/voice_data
       - /dev/shm/audio:/dev/shm/audio
     shm_size: 256mb
     depends_on:

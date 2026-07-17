@@ -20,30 +20,80 @@ from typing import Iterator, Optional
 import soundfile as sf
 import torch
 
-from app.core.config import settings, get_model_path, get_voice_ref_audio
+from app.core.config import settings, get_model_path, ROOT_DIR
 from app.utils.normalizer import normalize_number_input
 
 logger = logging.getLogger(__name__)
 
-# --- VOICE REGISTRY ---
-# Mo voice id = mot bo (ref_audio, ref_text) dung de clone giong
-# ref_audio: file audio mau (10-20s)
-# ref_text: noi dung cua file audio mau (de model hieu)
-VOICE_REGISTRY = {
-    "001": {
-        "ref_audio": "thalicvoice_10s.mp3",
-        "ref_text": (
-            "Mot so tinh mien bac, luu y khong phai la tat ca se gap mot so van de "
-            "ve phat am nhu bi ngong l, n hay la bi sai nguyen am. Va muon chuyen "
-            "sang giong Ha Noi chung phai khac phuc hai nguyen nay."
-        ),
-    },
-    # Them voice moi o day:
-    # "002": {
-    #     "ref_audio": "voice_002.mp3",
-    #     "ref_text": "Van ban mau cua voice 002...",
-    # },
-}
+# --- VOICE DATA ---
+# Doc tu folder voice_data/ thay vi code hard trong code
+# Mo voice id = mot folder (001/, 002/, ...)
+#   - file audio: .mp3 hoac .wav (ref_audio)
+#   - file ref.txt: noi dung text mau (ref_text)
+VOICE_DATA_DIR = ROOT_DIR / "voice_data"
+
+_voice_data_cache = None
+_voice_data_mtime = 0
+
+
+def _scan_voice_data() -> dict:
+    """
+    Scan folder voice_data/ va tra ve registry dict.
+
+    Cache theo mtime cua folder:
+    - Neu folder khong thay doi -> tra cache (nhanh)
+    - Neu folder thay doi -> scan lai (tu dong cap nhat voice moi)
+
+    Returns:
+        dict voi voice_id la key, value la {"ref_audio": Path, "ref_text": str}
+    """
+    global _voice_data_cache, _voice_data_mtime
+
+    if not VOICE_DATA_DIR.exists():
+        logger.warning("Voice data folder khong ton tai: %s", VOICE_DATA_DIR)
+        return {}
+
+    current_mtime = VOICE_DATA_DIR.stat().st_mtime
+
+    # Neu folder chua thay doi -> tra cache
+    if current_mtime == _voice_data_mtime and _voice_data_cache is not None:
+        return _voice_data_cache
+
+    # Folder thay doi -> scan lai
+    logger.info("Scanning voice data: %s", VOICE_DATA_DIR)
+    registry = {}
+
+    for folder in sorted(VOICE_DATA_DIR.iterdir()):
+        if not folder.is_dir():
+            continue
+
+        voice_id = folder.name  # Tên thu muc = voice_id ("001", "002"...)
+
+        # Tim file ref.txt (bat buoc)
+        txt_file = folder / "ref.txt"
+        if not txt_file.exists():
+            logger.warning("Voice '%s' khong co ref.txt, bo qua", voice_id)
+            continue
+
+        # Tim file audio (.mp3 hoac .wav)
+        audio_files = list(folder.glob("*.mp3")) + list(folder.glob("*.wav"))
+        if not audio_files:
+            logger.warning("Voice '%s' khong co file audio, bo qua", voice_id)
+            continue
+
+        registry[voice_id] = {
+            "ref_audio": audio_files[0],
+            "ref_text": txt_file.read_text().strip(),
+        }
+        logger.info("Voice '%s': %s", voice_id, audio_files[0].name)
+
+    # Cap nhat cache
+    _voice_data_cache = registry
+    _voice_data_mtime = current_mtime
+
+    logger.info("Tim thay %d voice(s)", len(registry))
+    return registry
+
 
 # --- BIEN TOAN CUC ---
 _model_instance = None  # Singleton model instance
@@ -153,7 +203,7 @@ def get_model():
 
 def get_voice_config(voice_id: str = None) -> dict:
     """
-    Lay cau hinh voice tu registry.
+    Lay cau hinh voice tu folder voice_data/.
 
     Args:
         voice_id: ID cua voice (vi du: "001"). Neu khong truyen -> su dung DEFAULT_VOICE_ID
@@ -166,25 +216,35 @@ def get_voice_config(voice_id: str = None) -> dict:
     Example:
         >>> config = get_voice_config("001")
         >>> config["ref_audio"]
-        Path("/home/.../thalicvoice_10s.mp3")
+        Path("/home/.../voice_data/001/ref_audio.mp3")
     """
     # Su dung voice_id hoac default
     vid = voice_id or settings.DEFAULT_VOICE_ID
 
-    # Tim kiem trong registry
-    config = VOICE_REGISTRY.get(vid)
-    if not config:
-        logger.warning(
-            "Voice '%s' khong tim thay, dung mac dinh '%s'",
-            vid,
-            settings.DEFAULT_VOICE_ID,
-        )
-        config = VOICE_REGISTRY[settings.DEFAULT_VOICE_ID]
+    # Scan folder voice_data/ (cache neu chua thay doi)
+    registry = _scan_voice_data()
 
-    # Chuyen thanh absolute path
-    ref_audio = get_voice_ref_audio(config["ref_audio"])
+    # Tim kiem trong registry
+    config = registry.get(vid)
+    if not config:
+        available = list(registry.keys())
+        logger.warning(
+            "Voice '%s' khong tim thay. Voice co san: %s",
+            vid, available,
+        )
+        # Fallback ve voice dau tien tim thay
+        if registry:
+            fallback_id = next(iter(registry))
+            config = registry[fallback_id]
+            logger.info("Su dung voice fallback: '%s'", fallback_id)
+        else:
+            raise ValueError(
+                f"Khong tim thay voice '{vid}' va khong co voice nao trong "
+                f"voice_data/. Them voice vao: {VOICE_DATA_DIR}"
+            )
+
     return {
-        "ref_audio": ref_audio,
+        "ref_audio": config["ref_audio"],
         "ref_text": config["ref_text"],
     }
 

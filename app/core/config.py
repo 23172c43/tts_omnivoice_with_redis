@@ -59,16 +59,3 @@ def get_model_path() -> Path:
     if model_dir.is_absolute():
         return model_dir
     return ROOT_DIR / model_dir
-
-
-def get_voice_ref_audio(filename: str) -> Path:
-    """
-    Tra ve duong dan tuyet doi den file ref_audio cua voice.
-
-    Args:
-        filename: Ten file audio (vi du: "thalicvoice_10s.mp3")
-
-    Returns:
-        Path tuyet doi den file audio
-    """
-    return ROOT_DIR / "app" / "services" / filename
