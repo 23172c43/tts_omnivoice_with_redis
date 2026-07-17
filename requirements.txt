@@ -3,11 +3,11 @@ uvicorn[standard]
 pydantic-settings
 celery
 redis
-omnivoice
+omnivoice==0.2.0
 soundfile
 httpx
 numpy
 huggingface-hub
 accelerate
-transformers
+transformers==5.3.0
 vietnam-number

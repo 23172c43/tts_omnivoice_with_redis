@@ -19,7 +19,7 @@ import time
 import httpx
 import psutil
 
-BASE_URL = "http://localhost:8100/api/v1/tts"
+BASE_URL = "http://localhost:8989/api/v1/tts"
 
 # Van ban ngan de test nhanh
 TEXT_SHORT = [
@@ -165,7 +165,7 @@ async def bench(concurrency: int = 1, total: int = 3, stream: bool = False):
             )
         except Exception as e:
             print(f"[warmup] LOI: {e}")
-            print("  → FastAPI server co dang chay o port 8100 khong?")
+            print("  → FastAPI server co dang chay o port 8989 khong?")
             return
 
         if r.status_code == 200:

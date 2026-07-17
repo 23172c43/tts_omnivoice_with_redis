@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     # --- Server ---
     HOST: str = "0.0.0.0"
-    PORT: int = 8000
+    PORT: int = 8989
 
     # --- Redis / Celery ---
     REDIS_URL: str = "redis://localhost:6379/0"
