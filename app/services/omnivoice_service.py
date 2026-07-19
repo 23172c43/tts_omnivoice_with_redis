@@ -12,6 +12,7 @@ Voice Registry:
 """
 
 import io
+import json
 import logging
 import re
 from pathlib import Path
@@ -81,11 +82,22 @@ def _scan_voice_data() -> dict:
             logger.warning("Voice '%s' khong co file audio, bo qua", voice_id)
             continue
 
+        # Doc name tu meta.json (neu co, fallback ve voice_id)
+        name = voice_id
+        meta_file = folder / "meta.json"
+        if meta_file.exists():
+            try:
+                meta = json.loads(meta_file.read_text())
+                name = meta.get("name", voice_id)
+            except (json.JSONDecodeError, KeyError):
+                pass
+
         registry[voice_id] = {
             "ref_audio": audio_files[0],
             "ref_text": txt_file.read_text().strip(),
+            "name": name,
         }
-        logger.info("Voice '%s': %s", voice_id, audio_files[0].name)
+        logger.info("Voice '%s' (%s): %s", voice_id, name, audio_files[0].name)
 
     # Cap nhat cache
     _voice_data_cache = registry
