@@ -43,6 +43,15 @@ class Settings(BaseSettings):
     # --- Voice ---
     DEFAULT_VOICE_ID: str = "001"
 
+    # --- Logging ---
+    LOG_SERVICE: str = "api"
+    LOG_DIR: str = "logs"
+    LOG_LEVEL: str = "INFO"
+    LOG_ROTATION_WHEN: str = "midnight"
+    LOG_ROTATION_INTERVAL: int = 1
+    LOG_BACKUP_COUNT: int = 7
+    LOG_UTC: bool = True
+
 
 settings = Settings()
 

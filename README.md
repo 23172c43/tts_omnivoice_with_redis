@@ -120,6 +120,23 @@ docker compose logs --tail=100 tts_api
 docker compose logs --tail=100 tts_worker
 ```
 
+### 5. Lưu và xoay vòng log
+
+Log của ứng dụng được lưu trong thư mục `logs/` ở thư mục gốc của project:
+
+- `logs/api.log`: log của FastAPI/Uvicorn và các module được API gọi.
+- `logs/worker.log`: log của Celery worker và tác vụ TTS.
+
+Mặc định, mỗi file được xoay vòng vào lúc nửa đêm theo UTC và giữ tối đa 7 file cũ. Khi vượt quá số bản này, bản cũ nhất sẽ tự động bị xóa. Log stdout/stderr của Docker cũng được giới hạn ở 20 MB cho mỗi file và tối đa 7 file/container.
+
+Theo dõi log ứng dụng:
+
+```bash
+tail -F logs/api.log logs/worker.log
+```
+
+Các biến `LOG_DIR`, `LOG_LEVEL`, `LOG_ROTATION_WHEN`, `LOG_ROTATION_INTERVAL`, `LOG_BACKUP_COUNT` và `LOG_UTC` có thể được thay đổi trong `docker-compose.yml` nếu cần.
+
 Mở Swagger:
 
 ```text

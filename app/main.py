@@ -5,14 +5,13 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.v1 import router as v1_router
 from app.core.config import settings
+from app.core.logging_config import configure_logging
 
-# --- LOGGING ---
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+configure_logging()
+
+from app.api.v1 import router as v1_router
+
 logger = logging.getLogger(__name__)
 
 
